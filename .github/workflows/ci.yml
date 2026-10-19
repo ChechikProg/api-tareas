@@ -1,0 +1,22 @@
+# CI: corre los tests en cada push y pull request.
+# Render está configurado con autoDeployTrigger: checksPass, así que
+# solo publica una versión si este workflow terminó en verde.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test

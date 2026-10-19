@@ -1,0 +1,27 @@
+{
+  "name": "api-tareas",
+  "version": "1.0.0",
+  "description": "API de ejemplo (tareas) preparada para deploy en Render — TP Backend Node.js, tema 6",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/migrate.js && node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/migrate.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

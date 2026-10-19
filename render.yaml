@@ -1,0 +1,33 @@
+# Render Blueprint (infraestructura como código).
+# Con este archivo en la raíz del repo: Render Dashboard → New → Blueprint → elegir el repo.
+# Render crea la base de datos y el web service, y los conecta entre sí.
+# Referencia: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: api-tareas
+    runtime: node
+    plan: free                 # para producción real: starter (no se duerme)
+    region: virginia           # la región más cercana a Argentina entre las disponibles
+    buildCommand: npm ci
+    startCommand: npm start    # corre la migración y después levanta el servidor
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass   # deploy solo si GitHub Actions (tests) pasó
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tareas-db
+          property: connectionString   # URL interna: misma región, sin SSL, no sale a internet
+      - key: API_KEY
+        generateValue: true            # Render genera un secreto aleatorio; nunca va al repo
+
+databases:
+  - name: tareas-db
+    plan: free                 # vence a los 30 días; para producción: 0.1c-256mb (pago) o superior
+    region: virginia
+    databaseName: tareas
+    ipAllowList: []            # solo conexiones internas desde servicios de Render
