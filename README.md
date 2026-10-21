@@ -101,3 +101,18 @@ curl -X POST $URL/api/tareas -H "content-type: application/json" -d '{"titulo":"
 - Sin backups, sin disco persistente ni escalado a más de una instancia.
 
 Para un producto real: web service Starter y base paga (aprox. USD 13/mes en total a octubre de 2026).
+
+## Pruebas con Postman
+
+La colección `postman/api-tareas.postman_collection.json` tiene 20 requests con tests automáticos: estado de la API, el CRUD completo (crear, listar, obtener, completar, renombrar, borrar) y 10 casos de error (401 sin API key, 400 por datos inválidos, 404).
+
+1. Postman → **Import** → elegir el archivo.
+2. En la colección → pestaña **Variables** → `apiKey` → **Current value**: pegar la API_KEY de Render.
+3. Abrir `/health` en el navegador para despertar el servicio (plan gratis).
+4. Clic derecho en la colección → **Run collection**.
+
+Desde la terminal, con Newman:
+
+```bash
+npx newman run postman/api-tareas.postman_collection.json --env-var apiKey=TU_KEY
+```

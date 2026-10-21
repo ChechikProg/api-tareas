@@ -1,0 +1,491 @@
+{
+  "info": {
+    "name": "api-tareas",
+    "description": "Pruebas de la API de tareas desplegada en Render (TP Backend Node.js, tema 6).\n\nAntes de correrla: en la pestaña Variables de la colección, completar `apiKey` (Current value) con la API_KEY que está en Render → api-tareas → Environment.\n\nOrden recomendado: correr la colección completa con Run collection. Las carpetas 2 y 3 dependen de la tarea que crea la carpeta 2.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api-tareas-ifhr.onrender.com", "type": "string" },
+    { "key": "apiKey", "value": "", "type": "string" },
+    { "key": "tareaId", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Se ejecuta en TODOS los requests de la colección",
+          "pm.test('La respuesta es JSON (salvo 204)', function () {",
+          "  if (pm.response.code !== 204) {",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "  }",
+          "});",
+          "pm.test('No expone X-Powered-By', function () {",
+          "  pm.expect(pm.response.headers.has('X-Powered-By')).to.be.false;",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Estado",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "El mismo endpoint que usa Render para decidir si la versión nueva recibe tráfico. Ojo: en el plan gratis la primera llamada puede tardar ~1 minuto si el servicio estaba dormido."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('status es ok', () => pm.expect(body.status).to.eql('ok'));",
+                  "pm.test('Usa PostgreSQL (no memoria)', () => pm.expect(body.storage).to.eql('postgres'));",
+                  "pm.test('Informa la versión desplegada', () => pm.expect(body.version).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Raíz de la API",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Lista los endpoints', () => pm.expect(pm.response.json().endpoints).to.include('/api/tareas'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Headers de seguridad (HTTPS + helmet)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Strict-Transport-Security presente', () => pm.response.to.have.header('Strict-Transport-Security'));",
+                  "pm.test('X-Content-Type-Options: nosniff', () => pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff'));",
+                  "pm.test('X-Frame-Options presente', () => pm.response.to.have.header('X-Frame-Options'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. CRUD de tareas (flujo completo)",
+      "item": [
+        {
+          "name": "Crear tarea",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"Preparar la exposición del tema 6\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Devuelve la tarea con id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('El título es el enviado', () => pm.expect(body.titulo).to.eql('Preparar la exposición del tema 6'));",
+                  "pm.test('Arranca sin completar', () => pm.expect(body.completada).to.be.false);",
+                  "// Guardamos el id para los requests siguientes",
+                  "pm.collectionVariables.set('tareaId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar tareas",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Devuelve un array', () => pm.expect(body).to.be.an('array'));",
+                  "pm.test('Incluye la tarea recién creada', () => {",
+                  "  const id = Number(pm.collectionVariables.get('tareaId'));",
+                  "  pm.expect(body.map(t => t.id)).to.include(id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener tarea por id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tareas/{{tareaId}}", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "{{tareaId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Es la tarea pedida', () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('tareaId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marcar como completada",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"completada\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas/{{tareaId}}", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "{{tareaId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Quedó completada', () => pm.expect(pm.response.json().completada).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cambiar título",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"Exposición del tema 6 (practicada)\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas/{{tareaId}}", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "{{tareaId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Título actualizado', () => pm.expect(body.titulo).to.eql('Exposición del tema 6 (practicada)'));",
+                  "pm.test('Sigue completada (PATCH no pisa otros campos)', () => pm.expect(body.completada).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar tarea",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/tareas/{{tareaId}}", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "{{tareaId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar que se borró",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tareas/{{tareaId}}", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "{{tareaId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Mensaje de error', () => pm.expect(pm.response.json().error).to.eql('tarea no encontrada'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Casos de error",
+      "item": [
+        {
+          "name": "Crear sin API key → 401",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"No debería crearse\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('Explica el motivo', () => pm.expect(pm.response.json().error).to.include('API key'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear con API key incorrecta → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "clave-falsa" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"No debería crearse\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar sin API key → 401",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/tareas/1", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "1"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear con título vacío → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"   \"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Explica la validación', () => pm.expect(pm.response.json().error).to.include('titulo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear sin título → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear con título de más de 200 caracteres → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"titulo\": \"{{tituloLargo}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas", "host": ["{{baseUrl}}"], "path": ["api", "tareas"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('tituloLargo', 'x'.repeat(201));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Completada con tipo inválido → 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"completada\": \"si\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tareas/1", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "1"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Explica el tipo esperado', () => pm.expect(pm.response.json().error).to.include('true o false'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Id no numérico → 400",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tareas/abc", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "abc"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensaje: id inválido', () => pm.expect(pm.response.json().error).to.eql('id inválido'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tarea inexistente → 404",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tareas/999999", "host": ["{{baseUrl}}"], "path": ["api", "tareas", "999999"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ruta inexistente → 404",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/no-existe", "host": ["{{baseUrl}}"], "path": ["no-existe"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('Error en JSON, no HTML', () => pm.expect(pm.response.json().error).to.eql('ruta no encontrada'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
