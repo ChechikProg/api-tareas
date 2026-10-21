@@ -23,8 +23,24 @@ async function main() {
   });
   await client.connect();
   await client.query(SQL);
-  await client.end();
   console.log('[migrate] Tabla "tareas" lista.');
+
+  // Datos de ejemplo: solo si la tabla está vacía, para que la API no arranque sin nada que mostrar.
+  const { rows } = await client.query('SELECT COUNT(*)::int AS total FROM tareas');
+  if (rows[0].total === 0) {
+    await client.query(
+      `INSERT INTO tareas (titulo, completada) VALUES
+        ('Investigar plataformas de deploy', true),
+        ('Preparar la API para producción', true),
+        ('Hacer el deploy en Render', true),
+        ('Armar la colección de Postman', true),
+        ('Ensayar la exposición', false),
+        ('Presentar el tema 6', false)`
+    );
+    console.log('[migrate] Base vacía: se cargaron 6 tareas de ejemplo.');
+  }
+
+  await client.end();
 }
 
 main().catch((err) => {
